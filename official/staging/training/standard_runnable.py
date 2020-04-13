@@ -87,7 +87,7 @@ class StandardTrainable(runnable.AbstractTrainable):
     What a "step" consists of is up to the implementer. If using distribution
     strategies, the call to this method should take place in the "cross-replica
     context" for generality, to allow e.g. multiple iterator dequeues and calls
-    to `strategy.experimental_run_v2`.
+    to `strategy.run`.
 
     Args:
       iterator: A tf.nest-compatible structure of tf.data Iterator or
@@ -139,13 +139,10 @@ class StandardEvaluable(runnable.AbstractEvaluable):
         eval_fn = tf.function(eval_fn)
       self.eval_loop_fn = utils.create_loop_fn(eval_fn)
 
-    # TODO(b/147718615): When async RPC is enabled in eager runtime, we make
-    # eval iterator as a class member so it doesn't get destroyed when out of
-    # the function scope.
-    self.eval_iter = tf.nest.map_structure(iter, self.eval_dataset)
+    eval_iter = tf.nest.map_structure(iter, self.eval_dataset)
 
     self.eval_begin()
-    self.eval_loop_fn(self.eval_iter, num_steps)
+    self.eval_loop_fn(eval_iter, num_steps)
     return self.eval_end()
 
   def eval_begin(self):
@@ -163,7 +160,7 @@ class StandardEvaluable(runnable.AbstractEvaluable):
     What a "step" consists of is up to the implementer. If using distribution
     strategies, the call to this method should take place in the "cross-replica
     context" for generality, to allow e.g. multiple iterator dequeues and calls
-    to `strategy.experimental_run_v2`.
+    to `strategy.run`.
 
     Args:
       iterator: A tf.nest-compatible structure of tf.data Iterator or
