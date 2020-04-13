@@ -240,6 +240,18 @@ def ExtractKeypointDescriptor(image, layer_name, image_scales, iou,
           final_boxes.get_field('features'),
           tf.expand_dims(final_boxes.get_field('scores'), 1))
 
+def BuildRegModel(images, normalized_image=False, attentive=True):
+    if normalized_image:
+      image_tensor = images
+    else:
+      image_tensor = NormalizePixelValues(images)
+
+    model = delf_v1.DelfV1()
+    _, _, _, feature_map, end_points = model.GetAttentionPrelogit(image_tensor)
+    if attentive:
+      return end_points['attention_feature_map']
+    else:
+      return feature_map
 
 def BuildModel(layer_name, attention_nonlinear, attention_type,
                attention_kernel_size):

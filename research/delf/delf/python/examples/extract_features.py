@@ -34,6 +34,7 @@ from tensorflow.python.platform import app
 from delf import delf_config_pb2
 from delf import feature_io
 from delf import extractor
+import numpy as np
 
 cmd_args = None
 
@@ -84,6 +85,7 @@ def main(unused_argv):
     reader = tf.WholeFileReader()
     _, value = reader.read(filename_queue)
     image_tf = tf.image.decode_jpeg(value, channels=3)
+    image_tf = tf.image.resize(image_tf, (448, 448))
 
     with tf.Session() as sess:
       init_op = tf.global_variables_initializer()
@@ -111,20 +113,21 @@ def main(unused_argv):
         im = sess.run(image_tf)
 
         # If descriptor already exists, skip its computation.
-        out_desc_filename = os.path.splitext(os.path.basename(
-            image_paths[i]))[0] + _DELF_EXT
-        out_desc_fullpath = os.path.join(cmd_args.output_dir, out_desc_filename)
-        if tf.gfile.Exists(out_desc_fullpath):
+        save_path = image_paths[i]
+        save_path = save_path.replace('undist_images', 'reg_feat')
+        save_path = save_path.replace('.jpg', '.bin')
+        if tf.gfile.Exists(save_path):
           tf.logging.info('Skipping %s', image_paths[i])
           continue
 
         # Extract and save features.
-        (locations_out, descriptors_out, feature_scales_out,
-         attention_out) = extractor_fn(im)
+        reg_feat_out = extractor_fn(im)
+        reg_feat_out = np.squeeze(reg_feat_out, axis=0)
 
-        feature_io.WriteToFile(out_desc_fullpath, locations_out,
-                               feature_scales_out, descriptors_out,
-                               attention_out)
+        dir_name = os.path.dirname(save_path)
+        if not os.path.exists(dir_name):
+            os.mkdir(dir_name)
+        reg_feat_out.astype(np.float32).tofile(save_path)
 
       # Finalize enqueue threads.
       coord.request_stop()

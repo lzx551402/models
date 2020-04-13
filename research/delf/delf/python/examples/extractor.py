@@ -81,31 +81,10 @@ def MakeExtractor(sess, config, import_scope=None):
   Returns:
     Function that receives an image and returns features.
   """
-  tf.saved_model.loader.load(
-      sess, [tf.saved_model.tag_constants.SERVING],
-      config.model_path,
-      import_scope=import_scope)
-  import_scope_prefix = import_scope + '/' if import_scope is not None else ''
-  input_image = sess.graph.get_tensor_by_name('%sinput_image:0' %
-                                              import_scope_prefix)
-  input_score_threshold = sess.graph.get_tensor_by_name('%sinput_abs_thres:0' %
-                                                        import_scope_prefix)
-  input_image_scales = sess.graph.get_tensor_by_name('%sinput_scales:0' %
-                                                     import_scope_prefix)
-  input_max_feature_num = sess.graph.get_tensor_by_name(
-      '%sinput_max_feature_num:0' % import_scope_prefix)
-  boxes = sess.graph.get_tensor_by_name('%sboxes:0' % import_scope_prefix)
-  raw_descriptors = sess.graph.get_tensor_by_name('%sfeatures:0' %
-                                                  import_scope_prefix)
-  feature_scales = sess.graph.get_tensor_by_name('%sscales:0' %
-                                                 import_scope_prefix)
-  attention_with_extra_dim = sess.graph.get_tensor_by_name('%sscores:0' %
-                                                           import_scope_prefix)
-  attention = tf.reshape(attention_with_extra_dim,
-                         [tf.shape(attention_with_extra_dim)[0]])
-
-  locations, descriptors = feature_extractor.DelfFeaturePostProcessing(
-      boxes, raw_descriptors, config)
+  images = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 3), name='input')
+  reg_feat = feature_extractor.BuildRegModel(images, attentive=True, normalized_image=False)
+  restorer = tf.compat.v1.train.Saver(tf.global_variables())
+  restorer.restore(sess, config.model_path + 'variables/variables')
 
   def ExtractorFn(image):
     """Receives an image and returns DELF features.
@@ -125,18 +104,7 @@ def MakeExtractor(sess, config, import_scope=None):
         1] < _MIN_WIDTH:
       return np.array([]), np.array([]), np.array([]), np.array([])
 
-    (locations_out, descriptors_out, feature_scales_out,
-     attention_out) = sess.run(
-         [locations, descriptors, feature_scales, attention],
-         feed_dict={
-             input_image: resized_image,
-             input_score_threshold: config.delf_local_config.score_threshold,
-             input_image_scales: list(config.image_scales),
-             input_max_feature_num: config.delf_local_config.max_feature_num
-         })
-    rescaled_locations_out = locations_out / scale_factor
-
-    return (rescaled_locations_out, descriptors_out, feature_scales_out,
-            attention_out)
+    reg_feat_out = sess.run(reg_feat, feed_dict={'input:0': np.expand_dims(resized_image, axis=0)})
+    return reg_feat_out
 
   return ExtractorFn

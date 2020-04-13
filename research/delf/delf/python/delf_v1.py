@@ -34,7 +34,7 @@ slim = tf.contrib.slim
 _SUPPORTED_TARGET_LAYER = ['resnet_v1_50/block3', 'resnet_v1_50/block4']
 
 # The variable scope for the attention portion of the model.
-_ATTENTION_VARIABLE_SCOPE = 'attention_block'
+_ATTENTION_VARIABLE_SCOPE = 'attonly'
 
 # The attention_type determines whether the attention based feature aggregation
 # is performed on the L2-normalized feature map or on the default feature map
@@ -136,10 +136,10 @@ class DelfV1(object):
               'softplus_attention',
               values=[attention_feature_map, attention_score]):
             attention_prob = tf.nn.softplus(attention_score)
-            attention_feat = tf.reduce_mean(
-                tf.multiply(attention_feature_map, attention_prob), [1, 2])
+            attention_feat_map = tf.multiply(attention_feature_map, attention_prob)
+            attention_feat = tf.reduce_mean(attention_feat_map, [1, 2])
         attention_feat = tf.expand_dims(tf.expand_dims(attention_feat, 1), 2)
-    return attention_feat, attention_prob, attention_score
+    return attention_feat, attention_prob, attention_score, attention_feat_map
 
   def _GetAttentionSubnetwork(
       self,
@@ -184,10 +184,11 @@ class DelfV1(object):
 
       attention_outputs = self._PerformAttention(
           attention_feature_map, feature_map, attention_nonlinear, kernel)
-      prelogits, attention_prob, attention_score = attention_outputs
+      prelogits, attention_prob, attention_score, attention_feature_map = attention_outputs
       end_points['prelogits'] = prelogits
       end_points['attention_prob'] = attention_prob
       end_points['attention_score'] = attention_score
+      end_points['attention_feature_map'] = attention_feature_map
     return prelogits, attention_prob, attention_score, end_points
 
   def GetResnet50Subnetwork(self,
