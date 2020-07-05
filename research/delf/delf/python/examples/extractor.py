@@ -82,7 +82,7 @@ def MakeExtractor(sess, config, import_scope=None):
     Function that receives an image and returns features.
   """
   images = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 3), name='input')
-  reg_feat = feature_extractor.BuildRegModel(images, attentive=True, normalized_image=False)
+  reg_feat = feature_extractor.BuildRegModel(images, attentive=False, normalized_image=False)
   restorer = tf.compat.v1.train.Saver(tf.global_variables())
   restorer.restore(sess, config.model_path + 'variables/variables')
 

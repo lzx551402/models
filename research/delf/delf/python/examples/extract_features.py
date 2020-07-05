@@ -45,7 +45,7 @@ _DELF_EXT = '.delf'
 _STATUS_CHECK_ITERATIONS = 100
 
 
-def _ReadImageList(list_path):
+def _ReadImageList(list_path, prefix):
   """Helper function to read image paths.
 
   Args:
@@ -56,7 +56,7 @@ def _ReadImageList(list_path):
   """
   with tf.gfile.GFile(list_path, 'r') as f:
     image_paths = f.readlines()
-  image_paths = [entry.rstrip() for entry in image_paths]
+  image_paths = [os.path.join(prefix, entry.rstrip()) for entry in image_paths]
   return image_paths
 
 
@@ -65,7 +65,7 @@ def main(unused_argv):
 
   # Read list of images.
   tf.logging.info('Reading list of images...')
-  image_paths = _ReadImageList(cmd_args.list_images_path)
+  image_paths = _ReadImageList(cmd_args.list_images_path, cmd_args.prefix)
   num_images = len(image_paths)
   tf.logging.info('done! Found %d images', num_images)
 
@@ -73,10 +73,6 @@ def main(unused_argv):
   config = delf_config_pb2.DelfConfig()
   with tf.gfile.FastGFile(cmd_args.config_path, 'r') as f:
     text_format.Merge(f.read(), config)
-
-  # Create output directory if necessary.
-  if not tf.gfile.Exists(cmd_args.output_dir):
-    tf.gfile.MakeDirs(cmd_args.output_dir)
 
   # Tell TensorFlow that the model will be built into the default Graph.
   with tf.Graph().as_default():
@@ -116,7 +112,7 @@ def main(unused_argv):
         save_path = image_paths[i]
         save_path = save_path.replace('undist_images', 'reg_feat')
         save_path = save_path.replace('.jpg', '.bin')
-        if tf.gfile.Exists(save_path):
+        if cmd_args.skip_extracted and tf.gfile.Exists(save_path):
           tf.logging.info('Skipping %s', image_paths[i])
           continue
 
@@ -153,12 +149,18 @@ if __name__ == '__main__':
       Path to list of images whose DELF features will be extracted.
       """)
   parser.add_argument(
-      '--output_dir',
+      '--prefix',
       type=str,
-      default='test_features',
+      default='/data/GL3D',
       help="""
-      Directory where DELF features will be written to. Each image's features
-      will be written to a file with same name, and extension replaced by .delf.
+      Prefix of input images.
+      """)
+  parser.add_argument(
+      '--skip_extracted',
+      type=bool,
+      default=False,
+      help="""
+      Whether to skip extract features.
       """)
   cmd_args, unparsed = parser.parse_known_args()
   app.run(main=main, argv=[sys.argv[0]] + unparsed)
